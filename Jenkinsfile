@@ -41,5 +41,11 @@ pipeline {
                 archiveArtifacts(artifacts: 'frontend/dist/frontend/*')
             }
         }
+
+        stage('Notify') {
+            steps {
+                echo curl https://www.google.com
+            }
+        }
     }
 }
