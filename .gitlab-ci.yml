@@ -3,5 +3,5 @@ stages:
   - notify
 
 include:
-  - local: './backend/gitlab-ci.yml'
-  - local: './frontend/gitlab-ci.yml'
+  - local: '/backend/.gitlab-ci.yml'
+  - local: '/frontend/.gitlab-ci.yml'
