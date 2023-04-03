@@ -1,3 +1,7 @@
+stages:
+  - build
+  - notify
+
 build-backend-code-job:
   stage: build  
   only:
@@ -18,6 +22,6 @@ telegram-notification-backend:
     changes:
     - backend/*
   script:
-    - curl -X POST -H 'Content-type:application/json' --data '{"chat_id":"-1001657575944", "text":"Backend artifact https://gitlab.praktikum-services.ru/api/v4/projects/2757/jobs/artifacts/release-0.0.1/download?job=build-backend-code-job"}' https://api.telegram.org/bot5933756043:AAE8JLL5KIzgrNBeTP5e-1bkbJy4YRoeGjs/sendMessage
+    - curl -X POST -H 'Content-type:application/json' --data "{\"chat_id\":\"-1001657575944\", \"text\":\"Backend artifact $CI_API_V4_URL/projects/$CI_PROJECT_ID/jobs/artifacts/$CI_COMMIT_BRANCH/download?job=build-backend-code-job\"}" https://api.telegram.org/bot5933756043:AAE8JLL5KIzgrNBeTP5e-1bkbJy4YRoeGjs/sendMessage
   needs:
     - build-backend-code-job
