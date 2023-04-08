@@ -1,6 +1,7 @@
 stages:
   - build
   - notify
+  - test
 
 build-backend-code-job:
   stage: build  
@@ -9,10 +10,11 @@ build-backend-code-job:
     - backend/*
   script:
     - cd backend
-    - mvn package
+    - mvn package -Dmaven.repo.local=${CI_PROJECT_DIR}/.m2/repository
   artifacts:
     paths:
       - backend/target/sausage-store-0.0.1-SNAPSHOT.jar
+      - ${CI_PROJECT_DIR}/.m2
 
 telegram-notification-backend:
   stage: notify
@@ -25,3 +27,32 @@ telegram-notification-backend:
     - curl -X POST -H 'Content-type:application/json' --data "{\"chat_id\":\"-1001657575944\", \"text\":\"Backend artifact $CI_API_V4_URL/projects/$CI_PROJECT_ID/jobs/artifacts/$CI_COMMIT_BRANCH/download?job=build-backend-code-job\"}" https://api.telegram.org/bot5933756043:AAE8JLL5KIzgrNBeTP5e-1bkbJy4YRoeGjs/sendMessage
   needs:
     - build-backend-code-job
+
+spotbugs-sast:
+  rules:
+    changes:
+    - backend/*
+  needs:
+    - build-backend-code-job
+  variables:
+    COMPILE: "false"
+    SAST_JAVA_VERSION: 11
+    MAVEN_REPO_PATH: ${CI_PROJECT_DIR}/.m2/repository
+
+sonarqube-backend-sast:
+  stage: test
+  only:
+    changes:
+    - backend/*
+  needs:
+    - job: build-backend-code-job
+      artifacts: true
+  image: maven:3.8-openjdk-16 # тот самый docker-образ, о котором мы все узнаем в будущем
+  script:
+    - cd backend
+    - >
+      mvn verify sonar:sonar -Dsonar.qualitygate.wait=true 
+      -Dsonar.projectName="${SONAR_PROJECT_KEY_BACKEND}"
+      -Dsonar.projectKey=${SONAR_PROJECT_KEY_BACKEND} 
+      -Dsonar.host.url=${SONARQUBE_URL}
+      -Dsonar.login=${SONAR_LOGIN_BACKEND}
