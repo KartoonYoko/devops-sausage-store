@@ -10,7 +10,7 @@
     </parent>
     <groupId>com.yandex.practicum.devops</groupId>
     <artifactId>sausage-store</artifactId>
-    <version>0.0.1-SNAPSHOT</version>
+    <version>${version.application}</version>
     <name>sausage-store</name>
     <description>Backend for sausage-store</description>
     <properties>
@@ -23,6 +23,15 @@
         <sonar.language>java</sonar.language>
         <jacoco-maven-plugin.version>0.8.7</jacoco-maven-plugin.version>
     </properties>
+
+    <distributionManagement>
+        <repository>
+            <id>sausage-store</id>
+            <name>sausage-store</name>
+            <url>${env.NEXUS_REPO_URL_BACKEND}</url>
+        </repository>
+    </distributionManagement>
+
     <dependencies>
         <dependency>
             <groupId>org.springframework.boot</groupId>
