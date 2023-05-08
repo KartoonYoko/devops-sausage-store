@@ -1,4 +1,24 @@
-include:
-  - local: 'backend/.gitlab-ci.yml'
-  - local: 'frontend/.gitlab-ci.yml'
-  - template: Security/SAST.gitlab-ci.yml
+stages:
+  - triggers
+
+trigger_backend:
+  stage: triggers
+  trigger:
+    include: 
+      - "backend/.gitlab-ci.yml"
+    strategy: depend # depend нужен, если какой-нибудь дочерний пайплайн свалился, мы знали, что общий пайплайн тоже идёт с ошибкой
+  rules:
+    - if: '$CI_PIPELINE_SOURCE != "merge_request_event"'
+      changes:
+        - backend/**/*
+
+trigger_frontend:
+  stage: triggers
+  trigger:
+    include: 
+      - "frontend/.gitlab-ci.yml"
+    strategy: depend
+  rules:
+    - if: '$CI_PIPELINE_SOURCE != "merge_request_event"'
+      changes:
+        - frontend/**/*
