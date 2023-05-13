@@ -70,9 +70,12 @@ sonarqube-frontend-sast:
       -Dsonar.projectKey=${SONAR_PROJECT_KEY_FRONTEND}
       -Dsonar.host.url=${SONARQUBE_URL}
       -Dsonar.login=${SONAR_LOGIN_FRONTEND} 
-
+# изменения в коде
 deploy:
   stage: deploy
+  environment:
+    name: staging-frontend
+    url: http://std-016-32.praktikum-services.tech
   rules:
     - when: manual
   needs: 
@@ -90,3 +93,4 @@ deploy:
   script:
     - scp ./frontend/sausage-store-frontend.service ${DEV_USER}@${DEV_HOST}:/home/${DEV_USER}/sausage-store-frontend.service
     - ssh ${DEV_USER}@${DEV_HOST} "export "CURRENT_VERSION=${VERSION}"; export "VERSION=${VERSION}"; export "DEV_HOST=${DEV_HOST}";export "NEXUS_REPO_ARTIFACT_URL=${NEXUS_REPO_ARTIFACT_URL}"; export "NEXUS_REPO_USER=${NEXUS_REPO_USER}"; export "NEXUS_REPO_PASS=${NEXUS_REPO_PASS}";setsid /bin/bash -s " < ./frontend/deploy.sh 
+
