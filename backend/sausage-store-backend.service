@@ -5,8 +5,8 @@ Description=Sasuage Store application server
 User=jarservice
 Environment=REPORT_PATH=/var/www-data/htdocs
 Environment=LOG_PATH=/logs
-StandardOutput=file:/logs/out.log
-StandardError=file:/logs/out_error_back.log
+StandardOutput=file:/opt/log/sausage-store-backend.log
+StandardError=file:/opt/log/sausage-store-backend-error.log
 Restart=always
 ExecStart=sudo /usr/bin/java \
 -Dmyserver.basePath='/home/jarservice/' \
