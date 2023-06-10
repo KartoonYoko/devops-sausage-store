@@ -13,9 +13,10 @@ ExecStart=sudo /usr/bin/java \
 -Dmyserver.bindAddr='127.0.0.1' \
 -Dmyserver.bindPort='8080' \
 -Dmyserver.hostName='Sausage-store' \
---spring.datasource.url=jdbc:postgresql://rc1b-zpl4km6ny2imb2xf.mdb.yandexcloud.net:6432/std-016-032 \
---spring.datasource.username=std-016-032 \
---spring.datasource.password=Testusr1234 \
+-spring.datasource.url=jdbc:postgresql://rc1b-zpl4km6ny2imb2xf.mdb.yandexcloud.net:6432/std-016-032 \
+-spring.datasource.username=std-016-032 \
+-spring.datasource.password=Testusr1234 \
+-spring.flyway.enabled=false \
 -jar '/home/jarservice/sausage-store.jar'
 SuccessExitStatus=143
 
