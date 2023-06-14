@@ -5,6 +5,7 @@ Description=Sasuage Store application server
 User=jarservice
 Environment=REPORT_PATH=/var/www-data/htdocs
 Environment=LOG_PATH=/logs
+EnvironmentFile=/home/jarservice/environments
 StandardOutput=file:/opt/log/sausage-store-backend.log
 StandardError=file:/opt/log/sausage-store-backend-error.log
 Restart=always
@@ -13,11 +14,11 @@ ExecStart=sudo /usr/bin/java \
 -Dmyserver.bindAddr='127.0.0.1' \
 -Dmyserver.bindPort='8080' \
 -Dmyserver.hostName='Sausage-store' \
--spring.datasource.url=jdbc:postgresql://rc1b-zpl4km6ny2imb2xf.mdb.yandexcloud.net:6432/std-016-032 \
--spring.datasource.username=std-016-032 \
--spring.datasource.password=Testusr1234 \
--spring.flyway.enabled=false \
--jar '/home/jarservice/sausage-store.jar'
+-jar '/home/jarservice/sausage-store.jar' \
+--spring.datasource.url=jdbc:postgresql://${PSQL_HOST}:${PSQL_PORT}/${PSQL_DBNAME} \
+--spring.datasource.username=${PSQL_USER} \
+--spring.datasource.password=${PSQL_PASSWORD} \
+--spring.data.mongodb.uri=mongodb://${MONGO_USER}:${MONGO_PASSWORD}@${MONGO_HOST}:27018/${MONGO_DATABASE}?tls=true
 SuccessExitStatus=143
 
 [Install]
