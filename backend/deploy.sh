@@ -1,13 +1,19 @@
-#! /bin/bash
-#Если свалится одна из команд, рухнет и весь скрипт
-set -xe
-#Перезаливаем дескриптор сервиса на ВМ для деплоя
-sudo cp -rf sausage-store-backend.service /etc/systemd/system/sausage-store-backend.service
-sudo rm -f /home/jarservice/sausage-store.jar||true
-#Переносим артефакт в нужную папку
-curl -u ${NEXUS_REPO_USER}:${NEXUS_REPO_PASS} -o sausage-store.jar ${NEXUS_REPO_ARTIFACT_URL_BACK}
-sudo cp ./sausage-store.jar /home/jarservice/sausage-store.jar||true #"<...>||true" говорит, если команда обвалится — продолжай
-#Обновляем конфиг systemd с помощью рестарта
-sudo systemctl daemon-reload
-#Перезапускаем сервис сосисочной
-sudo systemctl restart sausage-store-backend 
+#!/bin/bash
+set +e
+cat > .env <<EOF
+SPRING_DATASOURCE_URL=${SPRING_DATASOURCE_URL}
+SPRING_DATASOURCE_USERNAME=${SPRING_DATASOURCE_USERNAME}
+SPRING_DATASOURCE_PASSWORD=${SPRING_DATASOURCE_PASSWORD}
+SPRING_DATA_MONGODB_URI=${SPRING_DATA_MONGODB_URI}
+EOF
+docker network create -d bridge sausage_network || true
+docker pull gitlab.praktikum-services.ru:5050/std-016-032/sausage-store/sausage-backend:latest
+docker stop backend || true
+docker rm backend || true
+set -e
+docker run -d --name backend \
+    --network=sausage_network \
+    --restart always \
+    --pull always \
+    --env-file .env \
+    gitlab.praktikum-services.ru:5050/std-016-032/sausage-store/sausage-backend:latest
