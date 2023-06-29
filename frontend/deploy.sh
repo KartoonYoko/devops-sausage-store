@@ -1,14 +1,13 @@
-#! /bin/bash
-#Если свалится одна из команд, рухнет и весь скрипт
-set -xe
-#Перезаливаем дескриптор сервиса на ВМ для деплоя
-sudo cp -rf sausage-store-frontend.service /etc/systemd/system/sausage-store-frontend.service
-sudo rm -f /var/www-data/dist/sausage-store.tar.gz||true
-#Переносим артефакт в нужную папку
-curl -u ${NEXUS_REPO_USER}:${NEXUS_REPO_PASS} -o sausage-store.tar.gz ${NEXUS_REPO_ARTIFACT_URL}
-sudo cp ./sausage-store.tar.gz /var/www-data/dist/sausage-store.tar.gz #||true
-sudo tar -zxvf /var/www-data/dist/sausage-store.tar.gz -C /var/www-data/dist/
-#Обновляем конфиг systemd с помощью рестарта
-sudo systemctl daemon-reload
-#Перезапускаем сервис сосисочной
-sudo systemctl restart sausage-store-frontend 
+#!/bin/bash
+set +e
+docker network create -d bridge sausage_network || true
+docker pull gitlab.praktikum-services.ru:5050/std-016-032/sausage-store/sausage-frontend:latest
+docker stop frontend || true
+docker rm frontend || true
+set -e
+docker run -d --name frontend \
+    --network=sausage_network \
+    --restart always \
+    --pull always \
+    -p 80:80 \
+    gitlab.praktikum-services.ru:5050/std-016-032/sausage-store/sausage-frontend:latest

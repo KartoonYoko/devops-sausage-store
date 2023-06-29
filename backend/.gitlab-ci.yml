@@ -1,5 +1,15 @@
+# В нашем Gitlab для сборки контейнеров воспользуемся Докером в Докере :)  
+# https://docs.gitlab.com/ee/ci/docker/using_docker_build.html#use-the-kubernetes-executor-with-docker-in-docker
+# Для сборки образов с использованием Docker-in-Docker:
+# добавить в код Downstream пайплайнов в секцию include подготовленный шаблон, содержащий необходимые настройки:
+#  https://gitlab.praktikum-services.ru/templates/ci/-/blob/main/DockerInDockerTemplate.yml
+# использовать в задачах сборки в качестве образа стабильную версию образа Docker:dind docker:20.10.12-dind-rootless
+#
+
 include: 
   - template: Security/SAST.gitlab-ci.yml
+  - project: 'templates/ci'
+    file: 'DockerInDockerTemplate.yml'
 
 stages:
   - build
@@ -13,31 +23,45 @@ variables:
   MAVEN_REPO_PATH: ${CI_PROJECT_DIR}/.m2/repository
   NEXUS_REPO_ARTIFACT_URL_BACK: https://nexus.k8s.praktikum-services.tech/repository/sausage-store-vtulkin-vladislav-backend/com/yandex/practicum/devops/sausage-store/${VERSION}/sausage-store-${VERSION}.jar
   JAVA_OPTS: -XX:MaxRAMPercentage=90 # для того, чтобы Maven не съел всю свободную оперативку
+  SAST_EXCLUDED_ANALYZERS: nodejs-scan, eslint, semgrep
 
-build-backend-code-job:
+build-backend:
   stage: build
+  image: docker:20.10.12-dind-rootless
+  before_script:
+    - until docker info; do sleep 1; done
+    # переменные CI_REGISTRY_USER, CI_REGISTRY_PASSWORD, CI_REGISTRY генерятся Гитлабом, их задавать не надо
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
   script:
     - cd backend
-    - mvn package -Dversion.application=${VERSION} -Dmaven.repo.local=${MAVEN_REPO_PATH}
+    - >
+      docker build
+      --output type=local,dest=.
+      --build-arg VERSION=$VERSION
+      --tag $CI_REGISTRY_IMAGE/sausage-backend:$CI_COMMIT_SHA
+      .
+    - docker push $CI_REGISTRY_IMAGE/sausage-backend:$CI_COMMIT_SHA
   artifacts:
     paths:
-      - backend/target/sausage-store-$VERSION.jar
-      - ${CI_PROJECT_DIR}/.m2
+      # - ${CI_PROJECT_DIR}/.m2
+      - ${MAVEN_REPO_PATH}
   cache:
     paths:
-      - $MAVEN_REPO_PATH
+      - ${MAVEN_REPO_PATH}
 
-upload-backend-release:
+upload-backend-latest:
+  variables:
+    GIT_STRATEGY: none
+  image: docker:20.10.12-dind-rootless
   stage: release
-  only:
-    changes:
-      - backend/**/*
-  needs:
-    - job: build-backend-code-job
-      optional: true
+  before_script:
+    - until docker info; do sleep 1; done
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
   script:
-    - cd backend
-    - mvn -Dmaven.repo.local=$MAVEN_REPO_PATH -s settings.xml -Dversion.application=$VERSION -DskipTests deploy 
+    - docker pull $CI_REGISTRY_IMAGE/sausage-backend:$CI_COMMIT_SHA
+    # если образ прошел проверки в CI (сканирование, тесты и т.д), то тегаем latest
+    - docker tag $CI_REGISTRY_IMAGE/sausage-backend:$CI_COMMIT_SHA $CI_REGISTRY_IMAGE/sausage-backend:latest
+    - docker push $CI_REGISTRY_IMAGE/sausage-backend:latest
 
 telegram-notification-backend:
   stage: notify
@@ -47,22 +71,21 @@ telegram-notification-backend:
   script:
     - curl -X POST -H 'Content-type:application/json' --data "{\"chat_id\":\"-1001657575944\", \"text\":\"Вышла новая версия бекенда сосисочной — ${VERSION}. Скачать бекенд можно по ссылке — ${NEXUS_REPO_ARTIFACT_URL_BACK}\"}" https://api.telegram.org/bot$TELEGRAM_NOTIFICATION_TOKEN/sendMessage
   needs:
-    - job: upload-backend-release
+    - job: upload-backend-latest
       optional: true
 
 spotbugs-sast:
   needs:
-    - job: build-backend-code-job
+    - job: build-backend
       optional: true
   variables:
     COMPILE: "false"
     SAST_JAVA_VERSION: 11
-    MAVEN_REPO_PATH: ${CI_PROJECT_DIR}/.m2/repository
 
 sonarqube-backend-sast:
   stage: test
   needs:
-    - job: build-backend-code-job
+    - job: build-backend
       artifacts: true
       optional: true
   image: maven:3.8-openjdk-16 # тот самый docker-образ, о котором мы все узнаем в будущем
@@ -74,28 +97,29 @@ sonarqube-backend-sast:
       -Dsonar.projectKey=${SONAR_PROJECT_KEY_BACKEND} 
       -Dsonar.host.url=${SONARQUBE_URL}
       -Dsonar.login=${SONAR_LOGIN_BACKEND}
-# изменения в коде
-deploy:
+
+deploy-backend:
   stage: deploy
-  environment:
-    name: staging-backend
-    url: http://std-016-32.praktikum-services.tech
+  image: alpine:3.15.0
+  # если хотим сделать деплой по кнопке
   rules:
-    - when: manual
-  needs:
-    - job: upload-backend-release
-      optional: true
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      when: manual
+    - if: '$CI_COMMIT_BRANCH == "main"'
+      when: manual
   before_script:
-    #устанавливаем ssh-agent для удобства аутентификации по ssh
-    - 'command -v ssh-agent >/dev/null || ( apt-get update -y && apt-get install openssh-client -y )'
+    - apk add openssh-client bash
     - eval $(ssh-agent -s)
-    #сохраняем сгенеренный ранее приватный ключ для раннера
     - echo "$SSH_PRIVATE_KEY" | tr -d '\r' | ssh-add -
     - mkdir -p ~/.ssh
-    - chmod 600 ~/.ssh
+    - chmod 700 ~/.ssh
     - echo "$SSH_KNOWN_HOSTS" >> ~/.ssh/known_hosts
     - chmod 644 ~/.ssh/known_hosts
   script:
-    - scp ./backend/sausage-store-backend.service ${DEV_USER}@${DEV_HOST}:/home/${DEV_USER}/sausage-store-backend.service
-    - ssh ${DEV_USER}@${DEV_HOST} "export "CURRENT_VERSION=${VERSION}"; export "VERSION=${VERSION}"; export "DEV_HOST=${DEV_HOST}";export "NEXUS_REPO_ARTIFACT_URL_BACK=${NEXUS_REPO_ARTIFACT_URL_BACK}"; export "NEXUS_REPO_USER=${NEXUS_REPO_USER}"; export "NEXUS_REPO_PASS=${NEXUS_REPO_PASS}";setsid /bin/bash -s " < ./backend/deploy.sh 
-
+    - ssh ${DEV_USER}@${DEV_HOST}
+      "export "VERSION=${VERSION}";
+       export "SPRING_DATASOURCE_URL=${PSQL_DATASOURCE}";
+       export "SPRING_DATASOURCE_USERNAME=${PSQL_USER}";
+       export "SPRING_DATASOURCE_PASSWORD=${PSQL_PASSWORD}";
+       export "SPRING_DATA_MONGODB_URI=${MONGO_DATA}";
+      /bin/bash -s " < ./backend/deploy.sh 
