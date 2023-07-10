@@ -78,10 +78,11 @@ deploy-frontend:
   image: alpine:3.15.0
   # если хотим сделать деплой по кнопке
   rules:
-    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
-      when: manual
-    - if: '$CI_COMMIT_BRANCH == "main"'
-      when: manual
+    - when: manual
+    # - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    #   when: manual
+    # - if: '$CI_COMMIT_BRANCH == "main"'
+    #   when: manual
   before_script:
     - apk add openssh-client bash
     - eval $(ssh-agent -s)
