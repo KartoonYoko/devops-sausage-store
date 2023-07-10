@@ -10,7 +10,7 @@ docker network create -d bridge sausage_network || true
 docker pull gitlab.praktikum-services.ru:5050/std-016-032/sausage-store/sausage-backend:latest
 docker stop backend || true
 docker rm backend || true
-set -e
+set -xe
 docker run -d --name backend \
     --network=sausage_network \
     --restart always \

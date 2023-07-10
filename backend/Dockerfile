@@ -7,6 +7,7 @@ COPY ./src ./src
 COPY *.xml ./
 # копируем CA-сертификат Яндекса в образ
 RUN curl https://storage.yandexcloud.net/cloud-certs/CA.pem -o YandexInternalRootCA.crt \
+    && export "SPRING_CLOUD_VAULT_ENABLED=false" \
     && mvn package -Dversion.application=${VERSION}
 
 # release
