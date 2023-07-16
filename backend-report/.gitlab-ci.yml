@@ -11,11 +11,9 @@ stages:
   - notify
 
 variables:
-  VERSION: 1.0.${CI_PIPELINE_ID}
-  NEXUS_REPO_ARTIFACT_URL: https://nexus.k8s.praktikum-services.tech/repository/sausage-store-vtulkin-vladislav-frontend/sausage-store-front/sausage-store/${VERSION}/sausage-store-${VERSION}.tar.gz
-  SAST_EXCLUDED_ANALYZERS: gosec-sast
+  SAST_EXCLUDED_ANALYZERS: nodejs-scan, eslint, spotbugs-sast, gosec-sast
 
-build-frontend:
+build-backend-report:
   stage: build
   image: docker:20.10.12-dind-rootless
   before_script:
@@ -23,14 +21,14 @@ build-frontend:
     # переменные CI_REGISTRY_USER, CI_REGISTRY_PASSWORD, CI_REGISTRY генерятся Гитлабом, их задавать не надо
     - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
   script:
-    - cd frontend
+    - cd backend-report
     - >
       docker build
-      --tag $CI_REGISTRY_IMAGE/sausage-frontend:$CI_COMMIT_SHA
+      --tag $CI_REGISTRY_IMAGE/sausage-backend-report:$CI_COMMIT_SHA
       .
-    - docker push $CI_REGISTRY_IMAGE/sausage-frontend:$CI_COMMIT_SHA
+    - docker push $CI_REGISTRY_IMAGE/sausage-backend-report:$CI_COMMIT_SHA
 
-upload-frontend-latest:
+upload-backend-report-latest:
   variables:
     GIT_STRATEGY: none
   image: docker:20.10.12-dind-rootless
@@ -39,44 +37,42 @@ upload-frontend-latest:
     - until docker info; do sleep 1; done
     - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
   script:
-    - docker pull $CI_REGISTRY_IMAGE/sausage-frontend:$CI_COMMIT_SHA
+    - docker pull $CI_REGISTRY_IMAGE/sausage-backend-report:$CI_COMMIT_SHA
     # если образ прошел проверки в CI (сканирование, тесты и т.д), то тегаем latest
-    - docker tag $CI_REGISTRY_IMAGE/sausage-frontend:$CI_COMMIT_SHA $CI_REGISTRY_IMAGE/sausage-frontend:latest
-    - docker push $CI_REGISTRY_IMAGE/sausage-frontend:latest
+    - docker tag $CI_REGISTRY_IMAGE/sausage-backend-report:$CI_COMMIT_SHA $CI_REGISTRY_IMAGE/sausage-backend-report:latest
+    - docker push $CI_REGISTRY_IMAGE/sausage-backend-report:latest
 
-telegram-notification-frontend:
+telegram-notification-backend-report:
   stage: notify
   only:
     variables:
     - $CI_COMMIT_MESSAGE =~ /send notification/
-    changes:
-    - frontend/*
   script:
-    - curl -X POST -H 'Content-type:application/json' --data "{\"chat_id\":\"-1001657575944\", \"text\":\"Вышла новая версия фронтенда сосисочной — ${VERSION}. Скачать фронт можно по ссылке — ${NEXUS_REPO_ARTIFACT_URL}\"}" https://api.telegram.org/bot$TELEGRAM_NOTIFICATION_TOKEN/sendMessage
+    - curl -X POST -H 'Content-type:application/json' --data "{\"chat_id\":\"-1001657575944\", \"text\":\"Вышла новая версия бекенда отчётов сосисочной.\"}" https://api.telegram.org/bot$TELEGRAM_NOTIFICATION_TOKEN/sendMessage
   needs:
-    - upload-frontend-latest
+    - job: upload-backend-report-latest
+      optional: true
 
-sonarqube-frontend-sast:
+sonarqube-backend-report-sast:
   stage: test
-  only:
-    changes:
-    - frontend/*
   needs:
-    - job: build-frontend
+    - job: build-backend-report
       artifacts: true
+      optional: true
   image: sonarsource/sonar-scanner-cli:latest
   script:
-    - cd frontend
+    - cd backend-report
     - >
       sonar-scanner
-      -Dsonar.projectName="${SONAR_PROJECT_KEY_FRONTEND}"
-      -Dsonar.projectKey=${SONAR_PROJECT_KEY_FRONTEND}
+      -Dsonar.projectKey=${SONAR_PROJECT_KEY_BACKEND_REPORT}
+      -Dsonar.projectName=${SONAR_PROJECT_KEY_BACKEND_REPORT}
       -Dsonar.host.url=${SONARQUBE_URL}
-      -Dsonar.login=${SONAR_LOGIN_FRONTEND} 
+      -Dsonar.login=${SONAR_LOGIN_BACKEND_REPORT}
 
-deploy-frontend:
+deploy-backend-report:
   stage: deploy
-  image: alpine:3.15.0
+  # пробуем оставить vault для секретов
+  image: vault:1.11.3
   rules:
     - when: manual
   before_script:
@@ -98,5 +94,8 @@ deploy-frontend:
     - chmod +x $DOCKER_CONFIG/cli-plugins/docker-compose
     # создаём контекст
     - docker context create remote --docker host=ssh://${DEV_USER}@${DEV_HOST}
+    # выгружаем нужные секреты
+    - export VAULT_TOKEN="$(vault write -field=token auth/jwt/login role=sausage-store jwt=$CI_JOB_JWT)"
+    - export "DB=$(vault kv get -field=spring.data.mongodb.uri secret/sausage-store)"
     # запускаем
-    - docker --context remote compose up frontend -d --pull "always"
+    - docker --context remote compose up backend-report -d --pull "always" --force-recreate

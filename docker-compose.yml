@@ -1,0 +1,45 @@
+version: "3.7"
+
+services:
+  backend:
+    build: 
+      context: ./backend
+      args:
+        - VERSION=${VERSION}
+    image: gitlab.praktikum-services.ru:5050/std-016-032/sausage-store/sausage-backend:latest
+    container_name: sausage-store-backend
+    environment:
+      # Переменные из application.properties можно заменить переменными окружения
+      SPRING_DATASOURCE_USERNAME: ${PSQL_USER}
+      SPRING_DATASOURCE_PASSWORD: ${PSQL_PASSWORD}
+      SPRING_DATASOURCE_URL: ${PSQL_DATASOURCE}
+      SPRING_FLYWAY_BASELINE-ON-MIGRATE: "true"
+      VERSION: ${VERSION}
+    networks:
+      - sausage-store
+    restart: unless-stopped
+  
+  backend-report:
+    build:
+      context: ./backend-report
+      dockerfile: Dockerfile
+    image: gitlab.praktikum-services.ru:5050/std-016-032/sausage-store/backend-report:latest
+    container_name: sausage-store-backend-report
+    environment:
+      DB: ${DB}
+    networks:
+      - sausage-store
+    restart: unless-stopped
+
+  frontend:
+    build: ./frontend
+    image: gitlab.praktikum-services.ru:5050/std-016-032/sausage-store/sausage-frontend:latest
+    container_name: sausage-store-frontend
+    ports:
+      - "80:80"
+    networks:
+      - sausage-store
+    restart: unless-stopped
+
+networks:
+  sausage-store:
