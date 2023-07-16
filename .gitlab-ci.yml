@@ -12,6 +12,17 @@ trigger_backend:
       changes:
         - backend/**/*
 
+trigger_backend-report:
+  stage: triggers
+  trigger:
+    include: 
+      - "backend-report/.gitlab-ci.yml"
+    strategy: depend # depend нужен, если какой-нибудь дочерний пайплайн свалился, мы знали, что общий пайплайн тоже идёт с ошибкой
+  rules:
+    - if: '$CI_PIPELINE_SOURCE != "merge_request_event"'
+      changes:
+        - backend-report/**/*
+
 trigger_frontend:
   stage: triggers
   trigger:

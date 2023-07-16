@@ -10,6 +10,10 @@ RUN curl https://storage.yandexcloud.net/cloud-certs/CA.pem -o YandexInternalRoo
     && export "SPRING_CLOUD_VAULT_ENABLED=false" \
     && mvn package -Dversion.application=${VERSION}
 
+# cahce with maven repository
+FROM scratch AS export-cache
+COPY --from=builder /root/.m2/repository/ /
+
 # release
 FROM openjdk:16-jdk-alpine
 ARG VERSION=${VERSION}
