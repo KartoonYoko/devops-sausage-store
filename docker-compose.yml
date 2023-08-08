@@ -1,13 +1,19 @@
 version: "3.7"
 
 services:
-  backend:
-    build: 
-      context: ./backend
-      args:
-        - VERSION=${VERSION}
+  backend-green:
+    # build: 
+    #   context: ./backend
+    #   args:
+    #     - VERSION=1.1.6
+    #     - VERSION=${VERSION}
     image: gitlab.praktikum-services.ru:5050/std-016-032/sausage-store/sausage-backend:latest
-    container_name: sausage-store-backend
+    healthcheck:
+      test: wget -q http://localhost:8080/actuator/health
+      interval: 30s
+      timeout: 10s
+      start_period: 30s
+      retries: 3
     environment:
       # Переменные из application.properties можно заменить переменными окружения
       SPRING_DATASOURCE_USERNAME: ${PSQL_USER}
@@ -15,16 +21,42 @@ services:
       SPRING_DATASOURCE_URL: ${PSQL_DATASOURCE}
       SPRING_FLYWAY_BASELINE-ON-MIGRATE: "true"
       VERSION: ${VERSION}
+      VIRTUAL_HOST: backend
     networks:
-      - sausage-store
+      sausage-store:
+    restart: unless-stopped
+  
+  backend-blue:
+    # build: 
+    #   context: ./backend
+    #   args:
+    #     - VERSION=1.1.6
+        # - VERSION=${VERSION}
+    image: gitlab.praktikum-services.ru:5050/std-016-032/sausage-store/sausage-backend:latest
+    healthcheck:
+      test: wget -q http://localhost:8080/actuator/health
+      interval: 30s
+      timeout: 10s
+      start_period: 30s
+      retries: 3
+    environment:
+      # Переменные из application.properties можно заменить переменными окружения
+      SPRING_DATASOURCE_USERNAME: ${PSQL_USER}
+      SPRING_DATASOURCE_PASSWORD: ${PSQL_PASSWORD}
+      SPRING_DATASOURCE_URL: ${PSQL_DATASOURCE}
+      SPRING_FLYWAY_BASELINE-ON-MIGRATE: "true"
+      VERSION: ${VERSION}
+      VIRTUAL_HOST: backend
+    networks:
+      sausage-store:
     restart: unless-stopped
   
   backend-report:
-    build:
-      context: ./backend-report
-      dockerfile: Dockerfile
+    # build:
+    #   context: ./backend-report
+    #   dockerfile: Dockerfile
     image: gitlab.praktikum-services.ru:5050/std-016-032/sausage-store/backend-report:latest
-    container_name: sausage-store-backend-report
+    # container_name: sausage-store-backend-report
     environment:
       DB: ${DB}
     networks:
@@ -32,9 +64,13 @@ services:
     restart: unless-stopped
 
   frontend:
-    build: ./frontend
+    # build: ./frontend
     image: gitlab.praktikum-services.ru:5050/std-016-032/sausage-store/sausage-frontend:latest
     container_name: sausage-store-frontend
+    environment:
+      DEFAULT_HOST: backend
+    volumes:
+      - /var/run/docker.sock:/tmp/docker.sock:ro
     ports:
       - "80:80"
     networks:
